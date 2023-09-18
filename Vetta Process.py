@@ -102,19 +102,27 @@ for f in NoGCtableNames: # loop through sql tables of raw data
 cols = ['Subj','TrialName','Synced','ExclRsn']
 if 'TrialInfo.csv' in os.listdir(Folder):
     TrialInfo = pd.read_csv('TrialInfo.csv')
+    Col2Del = [x for x in TrialInfo.columns if 'Unnamed' in x]
+    TrialInfo.drop(labels=Col2Del, axis=1, inplace=True)
 else:
     TrialInfo = pd.DataFrame(columns=cols)
 
 for s in Subs:
     
-    if 's014' not in s:
+    if 's012' not in s:
         continue
     
     SubjPath = os.path.join(os.getcwd(), 'PilotData', s)
     if 'Figures' not in os.listdir(SubjPath):
         os.mkdir(os.path.join(SubjPath, 'Figures'))
+    
 
     for fn in os.listdir(SubjPath):
+
+        if '080' not in fn: 
+            continue
+        
+        
         if '.mat' in fn:
             
             if 'static' in fn:      # skip static trial
@@ -169,6 +177,7 @@ for s in Subs:
             t = 'Stomp ID'
             m = 'Can you fully view the vGRF (top) and acc(bottom) stomps?'
             ans = tk.messagebox.askyesno(title=t, message=m, icon='question')
+            StompID = 'Auto'
             
             if ans == False:
                 b = 60
@@ -182,12 +191,16 @@ for s in Subs:
                     TrialInfo.loc[len(TrialInfo)] = [s, fn, 'No', 'No stomp view']
                     continue
                 
-            
-            print('Select vGRF stomp start & stop (top subplot)')
+            # select start & stop times
+            t = 'vGRF ID'
+            m = 'Select vGRF stomp start & stop (top subplot)'
+            ans = tk.messagebox.showinfo(title=t, message=m)
             selvGRF1, selvGRF2 = plt.ginput(2)
             ax1.vlines([selvGRF1[0], selvGRF2[0]],ax1.get_ylim()[0], ax1.get_ylim()[1], 'k')
             
-            print('Select acc stomp start & stop (bottom subplot)')
+            t = 'Acc ID'
+            m = 'Select Acc stomp start & stop (bottom subplot)'
+            ans = tk.messagebox.showinfo(title=t, message=m)
             selAcc1, selAcc2 = plt.ginput(2)
             ax2.vlines([selAcc1[0], selAcc2[0]],ax2.get_ylim()[0], ax2.get_ylim()[1], 'k')
             
@@ -222,55 +235,24 @@ for s in Subs:
             ans = tk.messagebox.askyesno('Correct Stomps', 
                                          'Are the stomps identified correctly?')
             
-            if ans == False:
-                m = 'Re-select vGRF stomp start & stop (top subplot)'
-                tk.messagebox.showinfo(t, m)
-                selvGRF1, selvGRF2 = plt.ginput(2)
-                ax1.vlines([selvGRF1[0], selvGRF2[0]],ax1.get_ylim()[0], ax1.get_ylim()[1], 'k')
-                
-                m = 'Re-select acc stomp start & stop (bottom subplot)'
-                tk.messagebox.showinfo(t, m)
-                selAcc1, selAcc2 = plt.ginput(2)
-                ax2.vlines([selAcc1[0], selAcc2[0]],ax2.get_ylim()[0], ax2.get_ylim()[1], 'k')
-                
-                # get max vGRF
-                GRFind1 = np.where(TM['Time'] == round(selvGRF1[0], 2))[0][0]
-                GRFind2 = np.where(TM['Time'] == round(selvGRF2[0], 2))[0][0]
-                RvGRFindMax = np.argmax(TM['GRFv_Rn'][GRFind1:GRFind2])
-                LvGRFindMax = np.argmax(TM['GRFv_Ln'][GRFind1:GRFind2])
-                
-                RvGRFind = GRFind1 + RvGRFindMax
-                ax1.plot(TM['Time'][RvGRFind], TM['GRFv_Rn'][RvGRFind], 'ob')
-                LvGRFind = GRFind1 + LvGRFindMax
+            if ans == False: 
+                # manually select vGRF stomp time
+                tk.messagebox.showinfo(t, 'select vGRF left (green) stomp peak')
+                syncGRF = plt.ginput(1)
+                LvGRFindMax = round(syncGRF[0][0], 2)
+                LvGRFind = int(LvGRFindMax * 100) # translate from time to index (100 Hz, so multiply by 100)
                 ax1.plot(TM['Time'][LvGRFind], TM['GRFv_Ln'][LvGRFind], 'og')
                 
-                # get max acc
-                GRFind1 = np.where(L.index == round(selAcc1[0], 2))[0][0]
-                GRFind2 = np.where(L.index == round(selAcc2[0], 2))[0][0]
-                RAccindMax = np.argmax(R_unF.y.tolist()[GRFind1:GRFind2])
-                LAccindMax = np.argmax(L_unF.y.tolist()[GRFind1:GRFind2])
+                tk.messagebox.showinfo(t, 'select vGRF right (blue) stomp peak')
+                syncGRF = plt.ginput(1)
+                RvGRFindMax = round(syncGRF[0][0], 2)
+                RvGRFind = int(RvGRFindMax * 100) # translate from time to index (100 Hz, so multiply by 100)
+                ax1.plot(TM['Time'][RvGRFind], TM['GRFv_Rn'][RvGRFind], 'ob')
                 
-                RAccind = GRFind1 + RAccindMax
-                ax2.plot(R.index[RAccind], R_unF.y.tolist()[RAccind], 'ob')
-                LAccind = GRFind1 + LAccindMax
-                ax2.plot(L.index[LAccind], L_unF.y.tolist()[LAccind], 'og')
-                plt.show()
-                
-                ans2 = tk.messagebox.askyesno('Correct Stomps', 
-                                             'Are the stomps identified correctly?')
-                
-                if ans2 == False:
-                    m = 'Skipping this trial...'
-                    tk.messagebox.showinfo(t, m)
-                    
-                    # save trial info
-                    TrialInfo.loc[len(TrialInfo)] = [s, fn, 'No','No stomp id']
-                    continue
+                StompID = 'Manual' # save stomp identification method
                 
             # save figure of stomp ID
             plt.savefig(os.path.join(SubjPath, 'Figures', SQLname + '_StompID.png'))
-            
-            # raise StopIteration
             
             
             # determine if sensors are on the correct side 
@@ -302,7 +284,6 @@ for s in Subs:
             DemoFile = open(os.path.join(SubjPath, 'Demo.json'), 'r')
             JSdemo = json.load(DemoFile)
             DemoFile.close()
-            
             JSdemo['SensorSwap'] = SensorSwap
             DemoFile = open(os.path.join(SubjPath, 'Demo.json'), 'w')
             json.dump(JSdemo, DemoFile, indent=5)
@@ -316,15 +297,18 @@ for s in Subs:
             RvGRFsync = TM['GRFv_Rn'][RvGRFind + Offset :]
             RTimeSync = TM['Time'].tolist()[RvGRFind + Offset :]
             RAccsync = R.y.tolist()[RAccind + Offset :]
+            RWAccsync = W.y.tolist()[RAccind + Offset :]
             RAccUFsync = R_unF.y.tolist()[RAccind + Offset :]
             if len(RvGRFsync) > len(RAccsync):
                 RvGRFsync = RvGRFsync[:len(RAccsync) - EndTrim]
                 RAccsync = RAccsync[:len(RAccsync) - EndTrim]
+                RWAccsync = RWAccsync[:len(RAccsync) - EndTrim]
                 RAccUFsync = RAccUFsync[:len(RAccsync)]
                 RTimeSync = RTimeSync[:len(RAccsync)]
             elif len(RvGRFsync) < len(RAccsync):
                 RvGRFsync = RvGRFsync[:len(RvGRFsync) - EndTrim]
                 RAccsync = RAccsync[:len(RvGRFsync)]
+                RWAccsync = RWAccsync[:len(RvGRFsync)]
                 RAccUFsync = RAccUFsync[:len(RvGRFsync)]
                 RTimeSync = RTimeSync[:len(RvGRFsync)]
                 
@@ -332,15 +316,18 @@ for s in Subs:
             LvGRFsync = TM['GRFv_Ln'][LvGRFind + Offset :]
             LTimeSync = TM['Time'].tolist()[LvGRFind + Offset :]
             LAccsync = L.y.tolist()[LAccind + Offset :]
+            LWAccsync = W.y.tolist()[LAccind + Offset :]
             LAccUFsync = L_unF.y.tolist()[LAccind + Offset :]
             if len(LvGRFsync) > len(LAccsync):
                 LvGRFsync = LvGRFsync[:len(LAccsync) - EndTrim]
                 LAccsync = LAccsync[:len(LAccsync) - EndTrim]
+                LWAccsync = LWAccsync[:len(LAccsync) - EndTrim]
                 LAccUFsync = LAccUFsync[:len(LAccsync)]
                 LTimeSync = LTimeSync[:len(LAccsync)]
             elif len(LvGRFsync) < len(LAccsync):
                 LvGRFsync = LvGRFsync[:len(LvGRFsync) - EndTrim]
                 LAccsync = LAccsync[:len(LvGRFsync)]
+                LWAccsync = LWAccsync[:len(LvGRFsync)]
                 LAccUFsync = LAccUFsync[:len(LvGRFsync)]
                 LTimeSync = LTimeSync[:-EndTrim]
 
@@ -356,28 +343,14 @@ for s in Subs:
             R_GCs = [RTimeSync[x] for x in RvGRF_GC['Start']]
             RAcc = pd.DataFrame(dict(y=RAccsync), index=RTimeSync)
             RAccUF = pd.DataFrame(dict(y=RAccUFsync), index=RTimeSync)
-            RAcc_GC = VU.GetGCAcc(RAcc, RAccUF) # identify gait cycles using ankle sensors
+            if '080' in fn:
+                RAcc_GC = VU.GetGCAccSlow(RAcc, RAccUF) # identify gait cycles using ankle sensors
+            else:
+                RAcc_GC = VU.GetGCAcc(RAcc, RAccUF) # identify gait cycles using ankle sensors
+
+            AccStepIDRatio_R = RAcc_GC['Num_GCs'] / (len(RAcc_GC['Time']) / 100)
+            print('Right Step ID ratio:', round(AccStepIDRatio_R, 3))
             
-            # plot synchronized vGRF and Acc
-            # plt.close('all')
-            plt.figure(figsize=(8, 6))
-            ax1 = plt.subplot(211)
-            ax2 = plt.subplot(212)
-            
-            ax1.plot(RTimeSync, RvGRFsync)
-            ax1.vlines(R_GCs, ax1.get_ylim()[0], ax1.get_ylim()[1], 'k')
-            ax1.set_xlim((RTimeSync[0], RTimeSync[500]))
-            ax1.set_title('Right vGRF')
-            
-            ax2.plot(RTimeSync, RAccsync, label='Filtered')
-            ax2.plot(RTimeSync, RAccUFsync, label='Unfiltered')
-            ax2.plot(RTimeSync[:-1], np.diff(RAccUFsync), label='jerk')
-            ax2.vlines(R_GCs, ax2.get_ylim()[0], ax2.get_ylim()[1], 'k')
-            ax2.vlines(RAcc_GC['StartTimes'], ax2.get_ylim()[0], ax2.get_ylim()[1], 'b')
-            ax2.legend()
-            ax2.set_xlim((RTimeSync[0], RTimeSync[500]))
-            ax2.set_title('Right Acc')
-            plt.savefig(os.path.join(SubjPath, 'Figures', SQLname + '_Rsync.png')) 
             
             # LEFT
             LvGRF_stance, LvGRF_GC = VU.GetGCs(LvGRFsync)
@@ -389,13 +362,23 @@ for s in Subs:
             L_GCs = [LTimeSync[x] for x in LvGRF_GC['Start']]
             LAcc = pd.DataFrame(dict(y=LAccsync), index=LTimeSync)
             LAccUF = pd.DataFrame(dict(y=LAccUFsync), index=LTimeSync)
-            LAcc_GC = VU.GetGCAcc(LAcc, LAccUF) # identify gait cycles using ankle sensors
+            if '080' in fn:
+                LAcc_GC = VU.GetGCAccSlow(LAcc, LAccUF) # identify gait cycles using ankle sensors
+            else:
+                LAcc_GC = VU.GetGCAcc(LAcc, LAccUF) # identify gait cycles using ankle sensors
+            
+            AccStepIDRatio_L = LAcc_GC['Num_GCs'] / (len(LAcc_GC['Time']) / 100)
+            print('Left Step ID ratio:', round(AccStepIDRatio_L, 3))
             
             # plot synchronized vGRF and Acc
-            plt.figure(figsize=(8, 6))
-            ax1 = plt.subplot(211)
-            ax2 = plt.subplot(212)
+            # plt.close('all')
+            plt.figure(figsize=(10, 8))
+            ax1 = plt.subplot(221)
+            ax2 = plt.subplot(223)
+            ax3 = plt.subplot(222)
+            ax4 = plt.subplot(224)
             
+            # left
             ax1.plot(LTimeSync, LvGRFsync)
             ax1.vlines(L_GCs, ax1.get_ylim()[0], ax1.get_ylim()[1], 'k')
             ax1.set_xlim((LTimeSync[0], LTimeSync[500]))
@@ -403,14 +386,33 @@ for s in Subs:
             
             ax2.plot(LTimeSync, LAccsync, label='Filtered')
             ax2.plot(LTimeSync, LAccUFsync, label='Unfiltered')
-            ax2.plot(LTimeSync[:-1], np.diff(LAccUFsync), label='jerk')
+            ax2.plot(LTimeSync[:-1], np.diff(LAccUFsync), label='Jerk')
             ax2.vlines(L_GCs, ax2.get_ylim()[0], ax2.get_ylim()[1], 'k')
-            ax2.vlines(LAcc_GC['StartTimes'], ax2.get_ylim()[0], ax2.get_ylim()[1], 'b')
+            ax2.vlines(LAcc_GC['StartTimes'], ax2.get_ylim()[0], ax2.get_ylim()[1], 'b', 
+                       linestyles='dashed', linewidths=2)
             ax2.legend()
             ax2.set_xlim((LTimeSync[0], LTimeSync[500]))
             ax2.set_title('Left Acc')
-            plt.savefig(os.path.join(SubjPath, 'Figures', SQLname + '_Lsync.png')) 
             
+            # right
+            ax3.plot(RTimeSync, RvGRFsync)
+            ax3.vlines(R_GCs, ax1.get_ylim()[0], ax1.get_ylim()[1], 'k')
+            ax3.set_xlim((RTimeSync[0], RTimeSync[500]))
+            ax3.set_title('Right vGRF')
+            
+            ax4.plot(RTimeSync, RAccsync, label='Filtered')
+            ax4.plot(RTimeSync, RAccUFsync, label='Unfiltered')
+            ax4.plot(RTimeSync[:-1], np.diff(RAccUFsync), label='Jerk')
+            ax4.vlines(R_GCs, ax2.get_ylim()[0], ax2.get_ylim()[1], 'k')
+            ax4.vlines(RAcc_GC['StartTimes'], ax2.get_ylim()[0], ax2.get_ylim()[1], 'b', 
+                       linestyles='dashed', linewidths=2)
+            ax4.legend()
+            ax4.set_xlim((RTimeSync[0], RTimeSync[500]))
+            ax4.set_title('Right Acc')
+            
+            
+            # verify successful synchronization before saving in SQL database
+            # successful synchronizations should have gait events (vertical lines) very close to each other
             t = 'Successful Sync?'
             m = 'Are the vGRFs and Accs synchronized correctly?'
             ans = tk.messagebox.askyesno(t, m, icon='question')
@@ -419,43 +421,98 @@ for s in Subs:
                 TrialInfo.loc[len(TrialInfo)] = [s, fn, 'No','No sync']
                 continue
             
+            plt.savefig(os.path.join(SubjPath, 'Figures', SQLname + '_sync.png')) 
+            
             
             # get all steps present in both vGRFs and Acc
             Thresh = 0.05
+            
+            # LEFT
             vGRFstarts = []
             Accstarts = []
-            for g in LAcc_GC['StartTimes']:
+            for i, g in enumerate(LAcc_GC['StartTimes'][:-1]):
                 # get step within threshold
-                t = [i for i, x in enumerate(np.subtract(L_GCs, g)) if abs(x) < Thresh]
+                t = [j for j, x in enumerate(np.subtract(L_GCs, g)) if abs(x) < Thresh]
                 if t:
-                    # print('vGRF start time:  ', L_GCs[t[0]])
-                    # print('Acc start time:  ', g)
+                    # exclude steps that are too short or long
+                    if LAcc_GC['StartTimes'][i+1] - g > 1.4:
+                        continue
+                    if LAcc_GC['StartTimes'][i+1] - g < 0.8:
+                        continue
+                    if t[0] >= len(L_GCs) - 1:
+                        continue
+                    if L_GCs[t[0]+1] - L_GCs[t[0]] > 1.4:
+                        continue
+                    if L_GCs[t[0]+1] - L_GCs[t[0]] < 0.8:
+                        continue
+                    
+                    # otherwise save paired steps
                     vGRFstarts.append(L_GCs[t[0]])
                     Accstarts.append(g)
             
             # compile all steps into DF
+            LWAccDF, LTMDF = VU.CompileSteps(LTimeSync, Accstarts, LWAccsync, vGRFstarts, LvGRFsync)
+            # plt.figure()
+            # ax1 = plt.subplot(211)
+            # ax2 = plt.subplot(212)
+            # ax1.plot(LTMDF.T)
+            # ax2.plot(LWAccDF.T)
+
+            # save vGRF data in SQL db
+            TblName = SQLname + '_LGCsyncTM'
+            VU.pd_to_sql(LTMDF, TblName, D.sqlDB)
             
-            # resample to 100 points
+            # save waist Acc data in SQL db
+            TblName = SQLname + '_LGCsyncAcc'
+            VU.pd_to_sql(LWAccDF, TblName, D.sqlDB)
             
-            # save in SQL db
+            # RIGHT
+            vGRFstarts = []
+            Accstarts = []
+            for i, g in enumerate(RAcc_GC['StartTimes'][:-1]):
+                # get step within threshold
+                t = [j for j, x in enumerate(np.subtract(R_GCs, g)) if abs(x) < Thresh]
+                if t:
+                    # exclude steps that are too short or long
+                    if RAcc_GC['StartTimes'][i+1] - g > 1.4:
+                        continue
+                    if RAcc_GC['StartTimes'][i+1] - g < 0.8:
+                        continue
+                    if t[0] >= len(R_GCs) - 1:
+                        continue
+                    if R_GCs[t[0]+1] - R_GCs[t[0]] > 1.4:
+                        continue
+                    if R_GCs[t[0]+1] - R_GCs[t[0]] < 0.8:
+                        continue
+                    
+                    # otherwise save paired steps
+                    vGRFstarts.append(R_GCs[t[0]])
+                    Accstarts.append(g)
+            
+            # compile all steps into DF
+            RWAccDF, RTMDF = VU.CompileSteps(RTimeSync, Accstarts, RWAccsync, vGRFstarts, RvGRFsync)
+            # plt.figure()
+            # ax1 = plt.subplot(211)
+            # ax2 = plt.subplot(212)
+            # ax1.plot(RTMDF.T)
+            # ax2.plot(RWAccDF.T)
+
+            # save vGRF data in SQL db
+            TblName = SQLname + '_RGCsyncTM'
+            VU.pd_to_sql(RTMDF, TblName, D.sqlDB)
+            
+            # save waist Acc data in SQL db
+            TblName = SQLname + '_RGCsyncAcc'
+            VU.pd_to_sql(RWAccDF, TblName, D.sqlDB)
             
             
             # save trial info
-            TrialInfo.loc[len(TrialInfo)] = [s, fn,'Yes','N/A']
-                
+            TrialInfo.loc[len(TrialInfo)] = [s, fn, 'Yes', StompID]
             
-    # raise StopIteration
+            
+            # raise StopIteration
     
 TrialInfo.to_csv('TrialInfo.csv')
-
-
-#%% Plot Estimates SQL data
-# D.plotPreds()
-
-
-
-
-        
-
+plt.close('all')
 
 

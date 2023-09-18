@@ -118,7 +118,7 @@ class AllData:
         # check sensor data quality
         DQ = self.checkSensorData(ElapsedData)
 
-        # filter data ?
+        # filter data
         sos = signal.butter(4, 0.1, output='sos') # 4th order, 10 Hz, lowpass filter
         Filt = signal.sosfiltfilt(sos, Resam)
         
@@ -129,10 +129,9 @@ class AllData:
             plt.plot(Resam, label='Reampled')
             plt.plot(Filt, label='Filtered')
             plt.legend()
-            
-        # normalize to Gs from m/s^2
-        # plt.plot(ElapsedData.index, ElapsedData.y, '.')
-        FiltData = pd.DataFrame(dict(y=Filt.tolist()), index=newX)
+        
+        # save filtered data in dataframe
+        FiltData = pd.DataFrame(dict(y=Filt.tolist()), index=newX) 
         
         return FiltData, ResamData, DQ
     
@@ -297,8 +296,12 @@ class AllData:
         else:
             SpeedW = Speed[-3:]
  
-        if 'pref0' in LoadCond:
+        if 'pref' in LoadCond:
             LoadCondW = 'baseline'
+        # elif 'pref' in LoadCond:
+        #     LoadCondW = 'baseline'
+        elif 'under' in LoadCond:
+             LoadCondW = 'under3'
         else: 
             LoadCondW = LoadCond
             
@@ -309,7 +312,7 @@ class AllData:
         # TypeInd = [i for i, x in enumerate(self.TableNames) if 'L_GC' in x] 
         Ind = list(set(SubjInd) & set(LCInd) & set(SpdInd) & set(TypeInd))
         if not Ind:          # if no associated sensor data, skip trial
-            # print('No associated sensor data.')
+            print('No associated sensor data.')
             SQLName = []
             return SQLName
         
@@ -355,13 +358,7 @@ class AllData:
         return TM
 
         
-        
 
-        
-        
-       
-
-      
         
         
         
@@ -530,36 +527,31 @@ class PilotData:
         
         return AllStepData
     
-    
-    # def plotStepData(self):
-        
-    #     plt.figure()
-    
 
-#%% Waveform Data Loading & Analysis
-    def getWaveData(self):
-        # get all Wave Data for a given subject
+#% Waveform Data Loading & Analysis
+    # def getWaveData(self):
+    #     # get all Wave Data for a given subject
         
-        Col = ['Subj','Speed','Cond','id', 'time', 'side', 'peakValue']
-        AllWaveData = pd.DataFrame(columns=Col)
+    #     Col = ['Subj','Speed','Cond','id', 'time', 'side', 'peakValue']
+    #     AllWaveData = pd.DataFrame(columns=Col)
         
-        for s in self.speed:
-            for c in self.conds[s]:
-                subPath = os.path.join(self.path, s, c)
-                WaveFile = [x for x in os.listdir(subPath) if 'Wave' in x][0]
-                f = open(os.path.join(subPath, WaveFile))
-                J = json.load(f)
-                f.close()
-                WaveData = pd.DataFrame(data=np.empty((len(J), len(Col))), columns=Col)
+    #     for s in self.speed:
+    #         for c in self.conds[s]:
+    #             subPath = os.path.join(self.path, s, c)
+    #             WaveFile = [x for x in os.listdir(subPath) if 'Wave' in x][0]
+    #             f = open(os.path.join(subPath, WaveFile))
+    #             J = json.load(f)
+    #             f.close()
+    #             WaveData = pd.DataFrame(data=np.empty((len(J), len(Col))), columns=Col)
                 
-                for i in range(len(J)): # loop through json rows 
-                    D = pd.json_normalize(json.loads(J[i]))
-                    WaveData.iloc[i] = [self.name, s.split('_')[-1], c.split('_')[-1],
-                                       D.id.squeeze(), D.time.squeeze(), 
-                                       D.side.squeeze(), D.peakValue.squeeze()]
+    #             for i in range(len(J)): # loop through json rows 
+    #                 D = pd.json_normalize(json.loads(J[i]))
+    #                 WaveData.iloc[i] = [self.name, s.split('_')[-1], c.split('_')[-1],
+    #                                    D.id.squeeze(), D.time.squeeze(), 
+    #                                    D.side.squeeze(), D.peakValue.squeeze()]
                     
-                AllWaveData = pd.concat([AllWaveData, WaveData])
-        return AllWaveData
+    #             AllWaveData = pd.concat([AllWaveData, WaveData])
+    #     return AllWaveData
     
     
     
@@ -610,6 +602,7 @@ def pd_to_sql(input_df: pd.DataFrame,
     con.close()
 
 
+
 def sql_to_pd(sql_query_string: str, db_name: str ='default.db') -> pd.DataFrame:
     '''Execute an SQL query and return the results as a pandas dataframe
 
@@ -645,14 +638,13 @@ def GetGCAcc(FiltData, UnFiltData, PlotGCs=0):
     
     D = FiltData.y.to_list()
     Time = FiltData.index.to_list()
-    
     UF = UnFiltData.y.to_list()
     UFjerk = np.diff(UF)
     
     # peak-finding parameters
     # using vector mag acceleration at 100 Hz
-    wid = 10
-    p = 0.75
+    wid = 5
+    p = 0.5
     ht = 1
     # rh = 0.5
     d = 10
@@ -679,13 +671,13 @@ def GetGCAcc(FiltData, UnFiltData, PlotGCs=0):
     
     # loop through strikes and look for jerk peak slightly after each strike
     SrchWin = 50 # number of frames for search window 
-    d = 5
-    ht = 0.1
-    p = 0.2
+    ht = 0
+    p = 0.1
     StrikeJ = []
     for x in Strikes: 
-        PksJ, PkInfo = signal.find_peaks(UFjerk[x:x+SrchWin], height=ht, distance=d, prominence=p)
+        PksJ, PkInfo = signal.find_peaks(UFjerk[x:x+SrchWin], height=ht, prominence=p)
         if len(PksJ) == 0:
+            StrikeJ.append(x)
             continue
         StrikeJ.append(x + PksJ[0])
     
@@ -697,7 +689,7 @@ def GetGCAcc(FiltData, UnFiltData, PlotGCs=0):
         plt.plot(UFjerk)
         plt.plot(Strikes, [D[x] for x in Strikes], 'og')
         plt.plot(Offs, [D[x] for x in Offs], 'or')
-        if len(StrikeJ) >0 :
+        if len(StrikeJ) > 0:
             plt.plot(StrikeJ, [UFjerk[x] for x in StrikeJ], 'ok')
             plt.vlines(StrikeJ, 0, 3, 'k')
     
@@ -722,19 +714,146 @@ def GetGCAcc(FiltData, UnFiltData, PlotGCs=0):
         # exclude invalid steps if: 
         if np.mean(A[10:20]) < 0.5 or np.mean(A[20:30]) < 0.5: # too low during loading peak
           continue
-        if np.mean(A[30:40]) < 0.5 or np.mean(A[45:55]) < 0.5: # too low during mid stance
-          continue
-        if np.mean(A[65:75]) < 0.5 or np.mean(A[75:85]) < 0.5: # too low during propulsive peak
+        if np.mean(A[30:40]) < 0.5: # too low during mid stance
           continue
     
-        All[i, :] = A # otherwise save step
+        All[a, :] = A # otherwise save step
         Starts.append(StrikeJ[i])
         Ends.append(StrikeJ[i+1])
         a += 1
         del Raw, RawX, X, A
+        
+    ToDel = [x for x in range(L) if sum(All[x,:]) == 0]
+    All = np.delete(All, ToDel, axis=0)
+        
+    if PlotGCs == 1:
+        plt.figure()
+        plt.plot(All.T)
     
-    if a < L:
-      All = All[0:a, :]
+    Avg = np.mean(100*All, axis=0)
+    Std = np.std(100*All, axis=0)
+    GC = {} # save data in dict for export
+    GC['All'] = All
+    GC['Avg'] = Avg
+    GC['Std'] = Std
+    GC['Start'] = Starts
+    GC['End'] = Ends
+    GC['Time'] = Time
+    GC['StartTimes'] = [Time[x] for x in Starts]
+    GC['EndTimes'] = [Time[x] for x in Ends]
+    GC['Num_GCs'] = len(Starts)
+    
+    return GC
+
+def GetGCAccSlow(FiltData, UnFiltData, PlotGCs=0):
+    ''' get gait cycles from acceleration signal on ankle sensor, 
+    altered for slow walking
+    
+    Inputs:  
+        FiltData - filtered acceleration data 
+        UnFiltData - unfiltered acceleration data 
+        PlotGCs - optional logit to plot gait cycles (default=No)
+        
+    Outputs:
+        GC - dictionary containing all gait cycles, start & end times, averages 
+            and standard deviations, and more metrics of identified and parsed GCs
+    
+    '''
+    
+    D = FiltData.y.to_list()
+    Time = FiltData.index.to_list()
+    UF = UnFiltData.y.to_list()
+    UFjerk = np.diff(UF)
+    Ddiff = np.diff(D)
+    A1 = 0.4
+    
+    # find flat spots in signal
+    w = 20
+    Thresh = 0.025
+    Inds = []
+    for i, x in enumerate(Ddiff):
+        if i < 10:
+            continue
+        Vals = abs(Ddiff[i:i+w])
+        Log = Vals < Thresh
+        if False not in Log:
+            Inds.append(i)
+            
+    
+    # find starts of stance phases
+    # where above threshold before and consecutive flats after
+    StanceStarts = []
+    for i in Inds: 
+        if abs(Ddiff[i-1]) > Thresh:
+            Vals = abs(Ddiff[i:i+20])
+            Log = Vals < Thresh
+            if False not in Log:
+                StanceStarts.append(i)
+    
+    # peak-finding parameters
+    ht = 0.12
+    d = 15
+    
+    # find peaks right before stance phases
+    Strikes = []
+    for i in StanceStarts:
+        Pks, PkVals = signal.find_peaks(UFjerk[i-20:i+5], height=ht, distance=d) 
+        if len(Pks) > 0:
+            Strikes.append(i+Pks[0]-20)
+
+    # plot curve, peaks, starts & ends
+    if PlotGCs == 1:
+        plt.figure()
+        plt.plot(D, label='Filt', alpha=A1)
+        plt.plot(Ddiff, label='Filt Diff', alpha=A1)
+        plt.plot(UF, label='UnFilt', alpha=A1)
+        plt.plot(UFjerk, label='UnFilt Diff', alpha=A1)
+        X = np.arange(0, len(D))
+        plt.plot(X[Inds], Ddiff[Inds], 'og', label='Flats')
+        plt.vlines(StanceStarts, -1, 3)
+        plt.plot(Strikes, [UFjerk[x] for x in Strikes], 'ok', label='Strikes')
+        plt.legend()
+        
+    
+    # Get Gait Cycles (Foot strike to foot strike)
+    # loop through rise cycles and interpolate & save
+    Starts = []
+    Ends = []
+    L = len(Strikes)
+    All = np.zeros([L, 100])
+    a = 0
+    for i in range(L-1):
+        Raw = D[Strikes[i]:Strikes[i+1]]
+        RawX = range(len(Raw))
+        X = np.linspace(0, len(Raw), 100)
+        
+        if len(Raw) < 40: # exclude step if too short
+          continue
+        if len(Raw) > 250: # exclude step if too short
+          continue
+    
+        A = np.interp(X, RawX, Raw)
+        
+        # exclude invalid steps if: 
+        if np.mean(A[10:20]) < 0.5 or np.mean(A[20:30]) < 0.5: # too low during loading peak
+          continue
+        if np.mean(A[30:40]) < 0.5: # too low during mid stance
+          continue
+    
+        All[a, :] = A # otherwise save step
+        Starts.append(Strikes[i])
+        Ends.append(Strikes[i+1])
+        a += 1
+        del Raw, RawX, X, A
+        
+    ToDel = [x for x in range(L) if sum(All[x,:]) == 0]
+    All = np.delete(All, ToDel, axis=0)
+        
+    if PlotGCs == 1:
+        plt.figure()
+        plt.plot(All.T)
+    
+    
     Avg = np.mean(100*All, axis=0)
     Std = np.std(100*All, axis=0)
     GC = {} # save data in dict for export
@@ -807,8 +926,6 @@ def PredvGRF(W, L_GC, model, PlotPred=0):
     W_LGC['EndInds'] = EndInds
     W_LGC['StartTimes'] = [Time[x] for x in StartInds]
     W_LGC['EndTimes'] = [Time[x] for x in EndInds]
-    # W_LGC['Start'] = L_GC['Start']
-    # W_LGC['End'] = L_GC['End']
     W_LGC['Num_GCs'] = L_GC['Num_GCs']
     
     # estimate vGRF from waist accelerations
@@ -957,6 +1074,65 @@ def GetGCs(D):
 
 
 # def StompAnalysis():
+    
+def CompileSteps(TimeData, AccStepTimes, AccData, TMStepTimes, TMData):
+    """ loop through all valid steps and save into dataframe """
+    
+    cols = ['val' + str(x) for x in range(100)]
+    AccDF = pd.DataFrame(columns=cols)
+    TMDF = pd.DataFrame(columns=cols)
+    
+    if len(AccStepTimes) != len(TMStepTimes): 
+        raise Exception('Step times are not the same length')
+    
+    for i in range(len(AccStepTimes) - 1):
+        
+        # exclude steps that are too short or long
+        if TMStepTimes[i+1] - TMStepTimes[i] > 1.5:
+            continue
+        if TMStepTimes[i+1] - TMStepTimes[i] < 0.8:
+            continue
+        if AccStepTimes[i+1] - AccStepTimes[i] > 1.4:
+            continue
+        if AccStepTimes[i+1] - AccStepTimes[i] < 0.8:
+            continue
+        
+        # exclude steps that have too few/many vGRF peaks
+        a = TimeData.index(TMStepTimes[i])
+        b = TimeData.index(TMStepTimes[i+1])
+        p = 0.2
+        ht = 0.9
+        pks = signal.find_peaks(TMData[a:b], prominence=p, height=ht)
+        if len(pks) > 2:
+            # raise StopIteration
+            continue
+        
+        # exclude steps that are too low near midstance
+        # if np.mean(LvGRFsync[a:b])
+        
+        # save Acc Data
+        a = TimeData.index(AccStepTimes[i])
+        b = TimeData.index(AccStepTimes[i+1])
+        Raw = list(AccData)[a:b]
+        RawX = range(len(Raw))
+        X = np.linspace(0, len(Raw), 100)
+        if len(Raw) < 50: # exclude step if too short
+            continue
+        A = np.interp(X, RawX, Raw).tolist() # interpolate steps to 100 data points
+        AccDF.loc[len(AccDF),:] = A # save into dataframe
+        
+        # save TM Data
+        a = TimeData.index(TMStepTimes[i])
+        b = TimeData.index(TMStepTimes[i+1])
+        Raw = list(TMData)[a:b]
+        RawX = range(len(Raw))
+        X = np.linspace(0, len(Raw), 100)
+        if len(Raw) < 50: # exclude step if too short
+            continue
+        A = np.interp(X, RawX, Raw).tolist() # interpolate steps to 100 data points
+        TMDF.loc[len(TMDF),:] = A # save into dataframe
+        
+    return AccDF, TMDF
 
 
 #%%
