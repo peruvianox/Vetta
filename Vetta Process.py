@@ -46,14 +46,15 @@ NoGCtableNames = [x for x in D.getTableNames() if 'GC' not in x]
 
 for f in NoGCtableNames: # loop through sql tables of raw data
     print('Processing:', f)
+    
     S = f.split('_')
-    D.L, D.L_DQ = D.loadSensor(S[0], S[1], S[2], '34')
-    D.R, D.R_DQ = D.loadSensor(S[0], S[1], S[2], '35')
-    D.W, D.W_DQ = D.loadSensor(S[0], S[1], S[2], '36')
+    D.L, D.L_ReSam, D.L_DQ = D.loadSensor(S[0], S[1], S[2], '34')
+    D.R, D.R_ReSam, D.R_DQ = D.loadSensor(S[0], S[1], S[2], '35')
+    D.W, D.W_ReSam, D.W_DQ = D.loadSensor(S[0], S[1], S[2], '36')
     
     # identify gait cycles using ankle sensors
-    D.L_GC = VU.GetGCAcc(D.L)
-    D.R_GC = VU.GetGCAcc(D.R)
+    D.L_GC = VU.GetGCAcc(D.L, D.L_ReSam)
+    D.R_GC = VU.GetGCAcc(D.R, D.R_ReSam)
     
     # get waist data and estimate vGRF
     D.W_LGC = VU.PredvGRF(D.W, D.L_GC, D.model)
@@ -109,17 +110,17 @@ else:
 
 for s in Subs:
     
-    if 's012' not in s:
+    if 's003' not in s:
         continue
     
-    SubjPath = os.path.join(os.getcwd(), 'PilotData', s)
+    SubjPath = os.path.join(os.getcwd(), 'Data', s)
     if 'Figures' not in os.listdir(SubjPath):
         os.mkdir(os.path.join(SubjPath, 'Figures'))
     
 
     for fn in os.listdir(SubjPath):
 
-        if '080' not in fn: 
+        if '160' not in fn: 
             continue
         
         
@@ -499,11 +500,11 @@ for s in Subs:
 
             # save vGRF data in SQL db
             TblName = SQLname + '_RGCsyncTM'
-            VU.pd_to_sql(RTMDF, TblName, D.sqlDB)
+            # VU.pd_to_sql(RTMDF, TblName, D.sqlDB)
             
             # save waist Acc data in SQL db
             TblName = SQLname + '_RGCsyncAcc'
-            VU.pd_to_sql(RWAccDF, TblName, D.sqlDB)
+            # VU.pd_to_sql(RWAccDF, TblName, D.sqlDB)
             
             
             # save trial info
@@ -512,7 +513,14 @@ for s in Subs:
             
             # raise StopIteration
     
-TrialInfo.to_csv('TrialInfo.csv')
-plt.close('all')
+# TrialInfo.to_csv('TrialInfo.csv')
+# plt.close('all')
 
+
+#%%
+
+table_name = 's003_160_over9' + '_RGCsyncTM'
+sqlStr = f"SELECT * FROM {table_name}"
+df = VU.sql_to_pd(sqlStr, D.sqlDB)
+df.to_csv('s003_160_over9' + '_RGCsyncTM.csv')
 

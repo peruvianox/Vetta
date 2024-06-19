@@ -223,7 +223,7 @@ class AllData:
     def getMass(self, Subj, PlotStatic=0):
         """ Get Subject Mass from Static Trial """
         
-        SubjPath = os.path.join(os.getcwd(), 'PilotData',Subj)
+        SubjPath = os.path.join(os.getcwd(), 'Data',Subj)
         
         # check to see if Demo.json file exists
         DemoFile = [x for x in os.listdir(SubjPath) if 'Demo.json' in x]
@@ -332,7 +332,7 @@ class AllData:
         BodyMass = self.getMass(Subj) # load body mass for normalization to %BW
         
         # load vGRFs from datafile
-        TMData = loadmat(os.path.join(os.getcwd(), 'PilotData', Subj, TMFileName))
+        TMData = loadmat(os.path.join(os.getcwd(), 'Data', Subj, TMFileName))
         GRF_R = TMData[TMFileName[0:-4]]['Force'][0][0]['Force'][0][0]
         GRFv_R = GRF_R[2,:].T / BodyMass 
         GRF_L = TMData[TMFileName[0:-4]]['Force'][0][0]['Force'][0][1]
@@ -1133,6 +1133,9 @@ def CompileSteps(TimeData, AccStepTimes, AccData, TMStepTimes, TMData):
         TMDF.loc[len(TMDF),:] = A # save into dataframe
         
     return AccDF, TMDF
+
+#%%
+
 
 
 #%%
