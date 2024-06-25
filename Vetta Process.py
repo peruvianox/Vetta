@@ -45,6 +45,7 @@ D = VU.AllData()
 NoGCtableNames = [x for x in D.getTableNames() if 'GC' not in x]
 
 for f in NoGCtableNames: # loop through sql tables of raw data
+    
     print('Processing:', f)
     
     S = f.split('_')
@@ -91,11 +92,10 @@ for f in NoGCtableNames: # loop through sql tables of raw data
     VU.pd_to_sql(OutPks, f + '_GC_Peaks', D.sqlDB)      # export peaks
 
     # export vGRF peaks to CSV?
-    ToCSV = 0
+    ToCSV = 1
     if ToCSV == 1:
         OutPks.to_csv(f + '_GC_Peaks.csv')
 
-        
 
 #%% Incorporate TM data and compare with estimates
 
@@ -121,6 +121,9 @@ for s in Subs:
     for fn in os.listdir(SubjPath):
 
         if '160' not in fn: 
+            continue
+        
+        if 'over' not in fn: 
             continue
         
         
@@ -500,11 +503,11 @@ for s in Subs:
 
             # save vGRF data in SQL db
             TblName = SQLname + '_RGCsyncTM'
-            # VU.pd_to_sql(RTMDF, TblName, D.sqlDB)
+            VU.pd_to_sql(RTMDF, TblName, D.sqlDB)
             
             # save waist Acc data in SQL db
             TblName = SQLname + '_RGCsyncAcc'
-            # VU.pd_to_sql(RWAccDF, TblName, D.sqlDB)
+            VU.pd_to_sql(RWAccDF, TblName, D.sqlDB)
             
             
             # save trial info

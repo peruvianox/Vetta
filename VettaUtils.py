@@ -26,7 +26,7 @@ class AllData:
             self.sqlDB = 'VettaPilot_Pred.db'
             
         if hasattr(self, 'model') == 0:
-            # self.model = joblib.load('MLPmodel_Wnew')
+            # self.model = joblib.load('MLPmodelW-2021')
             mdlName = 'MLPmodelW.onnx'
             self.model = rt.InferenceSession(mdlName, providers=["CPUExecutionProvider"])
 
@@ -872,7 +872,13 @@ def GetGCAccSlow(FiltData, UnFiltData, PlotGCs=0):
 
 def PredvGRF(W, L_GC, model, PlotPred=0):
     " Use ankle gait cycle metrics to parse waist acc and predict vGRF"
-
+    
+    # change W acc from g's to m/s^2
+    if max(W['y'].to_list()) < 5:
+        W *= 9.81
+    elif max(W['y'].to_list()) > 50:
+        W /= 9.81
+    
     # get waist data during each gait cycle
     All = np.zeros([L_GC['Num_GCs'], 100])
     Time = W.index.to_list()
