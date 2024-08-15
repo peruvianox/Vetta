@@ -41,10 +41,9 @@ stepsFile = "new_Steps"
 waveFormFile = "new_WaveForms"
 
 
-modelFile = 'C:/Users/UNC ABL/Desktop/Vetta/tfmodel_5.onnx' 
-
-ONNX_model_path = "C:/Users/UNC ABL/Desktop/Vetta/tfmodel_5.onnx"
-
+modelFile = 'C:/Users/richa/Documents/Packages/Vetta/Database/ProcessingScripts/Models/tfmodel_5.onnx' 
+ONNX_model_path = modelFile
+file_save_path = 'C:/Users/richa/Documents/Packages/Vetta/Database/ProcessingScripts/Output'
 
 model = None
 
@@ -52,9 +51,9 @@ model = None
 StepDetectionMethod = 2
 
 #Sensor unicode values
-waistID = "38" #4
-leftShankId = "39" #5
-rightShankID = "3a" #6
+waistID = "38" #1
+leftShankId = "39" #2
+rightShankID = "3a" #3
 
 #Sample lists
 leftWaistSamples = []
@@ -91,7 +90,7 @@ def PredictPeakVGRFONNX(waistSamples,id,side):
     distance = 10
     prominence = .15
     width = 2
-    print("Here")
+    # print("Here")
     if onnx_session == None:
         print("No Model Loaded")
         return
@@ -100,8 +99,8 @@ def PredictPeakVGRFONNX(waistSamples,id,side):
     for sample in waistSamples:
         magnitudes.append(GetMagnitude(sample.accel))
     print(magnitudes)
-    #Convert to Gs for some reason
-    magnitudes = [x * 0.10197162129779283 for x in magnitudes]
+    #Convert to Gs for some reason - NO LONGER NEEDED
+    # magnitudes = [x * 0.10197162129779283 for x in magnitudes]
     #print(len(magnitudes))
     #print(magnitudes)
     inter_magnitudes = signal.resample(magnitudes,100)
@@ -121,10 +120,8 @@ def PredictPeakVGRFONNX(waistSamples,id,side):
     inter_magnitudes = np.array(inter_magnitudes, dtype=np.float32)
     inter_magnitudes = np.expand_dims(inter_magnitudes, axis=0)
     print(inter_magnitudes)
-    result =  onnx_session.run(None, {"dense_24_input":inter_magnitudes})[0][0]
-    vgrf = result
-    #print(result)
-    print(vgrf)
+    vgrf =  onnx_session.run(None, {"dense_24_input":inter_magnitudes})[0][0]
+    # print(vgrf)
     #plt.plot(vgrf)
     #plt.show()
     #sys.exit()
@@ -136,7 +133,7 @@ def PredictPeakVGRFONNX(waistSamples,id,side):
     jsonData = str(vgrfWaveForm)
     vgrfWaveForms.append(jsonData)
 
-    #Grab peak vgrf for stimulus
+    # Grab peak vgrf for stimulus
     peaks,properties = signal.find_peaks(vgrf, height = height, prominence = prominence, width = width, distance = distance)
     peakSample = VGRFSample(id,time.time(),side,properties['peak_heights'][0])
     return peakSample
@@ -179,7 +176,7 @@ def PredictPeakVGRF(waistSamples,id,side):
     return peakSample
 
 def LoadModel():
-    return joblib.load('C:/Users/UNC ABL/Desktop/Vetta/tfmodel_5.onnx') 
+    return joblib.load(modelFile) 
 
 def GetMagnitude(sample):
     return np.sqrt(sample[0] ** 2 + sample[1] ** 2 + sample[2] ** 2)
@@ -250,18 +247,18 @@ def FindHeelStrikes(jerk):
 
 
 #Currently no references.  Initial and Final event detection.  FindHeelStrikes is what's currently used
-def FindGaitEvents(jerk):
-    prom = 5 # specify promimence for small peak
-    [FClocs, FCprops] = signal.find_peaks(VMF, prominence=prom)
-    FCpks = [VMF[x] for x in FClocs]
+# def FindGaitEvents(jerk):
+#     prom = 5 # specify promimence for small peak
+#     [FClocs, FCprops] = signal.find_peaks(VMF, prominence=prom)
+#     FCpks = [VMF[x] for x in FClocs]
     
-    # get initial contact times
-    prom = (1, 5)  # specify promimence for large peak
-    wid = (5, 20)
-    [IClocs, ICprops] = signal.find_peaks(np.multiply(-1, VMF), prominence=prom, width=wid)
-    ICpks = [VMF[x] for x in IClocs]
+#     # get initial contact times
+#     prom = (1, 5)  # specify promimence for large peak
+#     wid = (5, 20)
+#     [IClocs, ICprops] = signal.find_peaks(np.multiply(-1, VMF), prominence=prom, width=wid)
+#     ICpks = [VMF[x] for x in IClocs]
 
-    return FCpks,ICpks
+#     return FCpks,ICpks
 
 
 
@@ -317,13 +314,17 @@ class Sample:
         self.gyro = []
         self.mag = []
         self.flag = -1
-    def __init__(self,new_id,new_time,new_accel,new_gyro,new_mag,new_flag):
+        self.battery = -1
+        self.battery_percent = -1
+    def __init__(self,new_id,new_time,new_accel,new_gyro,new_mag,new_flag, new_battery, battery_percent):
         self.id = new_id
         self.time = new_time
         self.accel = new_accel
         self.gyro = new_gyro
         self.mag = new_mag
         self.flag = new_flag
+        self.battery = new_battery
+        self.battery_percent = battery_percent
     def __str__(self):
         return 'Sensor: ' + str(self.id) + '\nAccel: ' + str(self.accel[0]) + ',' + str(self.accel[1]) + ',' + str(self.accel[2]) + '\nGyro: ' + str(self.gyro[0]) + ',' + str(self.gyro[1]) + ',' + str(self.gyro[2]) + '\nMag: ' + str(self.mag[0]) + ',' + str(self.mag[1]) + ',' + str(self.mag[2]) + '\nStatus: ' + str(self.flag)
 
@@ -438,8 +439,18 @@ def ProcessPacket(packetBin):
         new_flag = 0
     #print(new_flag)
     #print("Here finally")
-    new_sample = Sample(new_id,new_time,new_accel,new_gyro,new_mag,new_flag)
+
+    # Battery
+    # new_float = bytes()
+    hex_string = packetBin[41][2:]
+    new_battery = int(hex_string, 16)
+    max_battery = 220
+    battery_percent = round(new_battery / max_battery, 3)
     
+    # package updates into sample class
+    new_sample = Sample(new_id, new_time, new_accel, new_gyro, new_mag, new_flag, new_battery, battery_percent)
+
+    # new_sample = Sample(new_id,new_time,new_accel,new_gyro,new_mag,new_flag)
     #print(new_sample)
     #print('\n')
     return new_sample
@@ -526,20 +537,20 @@ while running:
             #print(len(bytes))
             string = []
             for byte in bytes:
-               #if byte == 204:
-                   #print("Aha!")
+            #    if byte == 204:
+            #        print("Aha!")
                #if byte ==170:
                    #print("Aha again!")
                string+=hex(byte)
             if len(bytes) == 47:
-               #print(string)
+            #    print(string)
                count+=1
-               #print(time.time())
+            #    print(time.time())
                try:
                     new_sample = ProcessPacket([hex(byte) for byte in bytes])
-                    #print("Good Sample")
+                    # print("Good Sample")
                     #Create Shank Signals for step counting
-                    #print(new_sample.id)
+                    # print(new_sample.id)
 
                     #print(leftShankId)
                     if new_sample.id == leftShankId:
@@ -785,24 +796,28 @@ while running:
         print(exc_type, fname, exc_tb.tb_lineno)
         running = False
         pass
+
+# save outputs
 print("Writing!")
 
 counter = 0
-savePath = "C:/Users/UNC ABL/Desktop/Vetta/NCBC/NCBCTestPythonOut_" + str(fileCount) + ".json"
+savePath = os.path.join(file_save_path, str(fileCount) + ".json")
 while exists(savePath):
     counter+=1
     savePath = savePath.replace(".json","_"+str(counter)+".json")
 with open(savePath, "w") as f:
-    f.write(json.dumps(samples,indent=4, sort_keys=True))
+    f.write(json.dumps(samples, indent=4, sort_keys=True))
+            
 counter = 0
-savePath = "C:/Users/UNC ABL/Desktop/Vetta/NCBC/NCBCTestPythonOut_" + stepsFile + ".json"
+savePath = os.path.join(file_save_path, stepsFile + ".json")
 while exists(savePath):
     counter+=1
     savePath = savePath.replace(".json","_"+str(counter)+".json")
 with open(savePath, "w") as f:
     f.write(json.dumps(vgrfSamples,indent=4, sort_keys=True))
+
 counter = 0
-savePath = "C:/Users/UNC ABL/Desktop/Vetta/NCBC/NCBCTestPythonOut_" + waveFormFile + ".json"
+savePath = os.path.join(file_save_path, waveFormFile + ".json")
 while exists(savePath):
     counter+=1
     savePath = savePath.replace(".json","_"+str(counter)+".json")
